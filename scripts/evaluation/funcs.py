@@ -30,10 +30,20 @@ def load_model_checkpoint(model, file_path, dtype, device):
         if not (k.startswith("cond_stage_model") or k.startswith("embedder"))
         #if not (k.startswith("cond_stage_model"))
     }  # Filter out keys starting with "cond_stage_model" and "embedder"
-    if is_accelerate_available:
+    def _looks_like_comfy_ops(module) -> bool:
+        # comfy.ops lazy modules (manual_cast.Linear/Conv) do not expose real
+        # weight/bias attributes until materialized, so accelerate's
+        # set_module_tensor_to_device() raises
+        #   ValueError: ... does not have a parameter or a buffer named weight.
+        return type(module).__module__.startswith("comfy.ops")
+
+    if is_accelerate_available and not _looks_like_comfy_ops(model):
         for key in filtered_state_dict:
             set_module_tensor_to_device(model, key, dtype=dtype, device=device, value=filtered_state_dict[key])
     else:
+        # Fallback for comfy.ops lazy modules / non-accelerate environments:
+        # plain load_state_dict works for both regular nn.Module and comfy.ops,
+        # because comfy.ops materializes parameters on load.
         model.load_state_dict(filtered_state_dict, strict=True)
 
     return model
