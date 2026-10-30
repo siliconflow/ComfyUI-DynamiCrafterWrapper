@@ -385,8 +385,11 @@ class UNetModel(nn.Module):
                 nn.SiLU(),
                 linear(time_embed_dim, time_embed_dim),
             )
-            nn.init.zeros_(self.fps_embedding[-1].weight)
-            nn.init.zeros_(self.fps_embedding[-1].bias)
+            _fps_last = self.fps_embedding[-1]
+            if _fps_last.weight is not None:
+                nn.init.zeros_(_fps_last.weight)
+            if _fps_last.bias is not None:
+                nn.init.zeros_(_fps_last.bias)
         ## Input Block
         self.input_blocks = nn.ModuleList(
             [
