@@ -138,12 +138,12 @@ class DownloadAndLoadDynamiCrafterModel:
                 self.model.model.diffusion_model = self.model.model.diffusion_model.to(torch.float8_e4m3fn)
             print(f"Model using dtype: {self.model.dtype}")
 
-            dcmodel = {
+            self.dcmodel = {
                 'model': self.model,
                 'model_name': model,
                 'dtype': precision
             }
-        return (dcmodel,)
+        return (self.dcmodel,)
         
 class DownloadAndLoadDynamiCrafterCNModel:
     @classmethod
@@ -437,11 +437,11 @@ class DynamiCrafterModelLoader:
                 self.model.model.diffusion_model = self.model.model.diffusion_model.to(torch.float8_e4m3fn)
             print(f"Model using dtype: {self.model.dtype}")
 
-            dcmodel = {
+            self.dcmodel = {
                 'model': self.model,
                 'model_name': ckpt_name,
             }
-        return (dcmodel,)
+        return (self.dcmodel,)
     
 class DynamiCrafterI2V:
     @classmethod
