@@ -30,21 +30,29 @@ def load_model_checkpoint(model, file_path, dtype, device):
         if not (k.startswith("cond_stage_model") or k.startswith("embedder"))
         #if not (k.startswith("cond_stage_model"))
     }  # Filter out keys starting with "cond_stage_model" and "embedder"
-    def _looks_like_comfy_ops(module) -> bool:
+    def _has_comfy_ops_submodules(module) -> bool:
         # comfy.ops lazy modules (manual_cast.Linear/Conv) do not expose real
         # weight/bias attributes until materialized, so accelerate's
         # set_module_tensor_to_device() raises
         #   ValueError: ... does not have a parameter or a buffer named weight.
-        return type(module).__module__.startswith("comfy.ops")
+        # lvdm builds modules through comfy.ops wrappers (basics.linear -> 
+        # ops.Linear), so ANY comfy.ops submodule anywhere in the tree makes
+        # the accelerate path unusable - scan the root and all descendants.
+        for m in module.modules():
+            if type(m).__module__.startswith("comfy.ops"):
+                return True
+        return False
 
-    if is_accelerate_available and not _looks_like_comfy_ops(model):
+    if is_accelerate_available and not _has_comfy_ops_submodules(model):
         for key in filtered_state_dict:
             set_module_tensor_to_device(model, key, dtype=dtype, device=device, value=filtered_state_dict[key])
     else:
         # Fallback for comfy.ops lazy modules / non-accelerate environments:
         # plain load_state_dict works for both regular nn.Module and comfy.ops,
         # because comfy.ops materializes parameters on load.
-        model.load_state_dict(filtered_state_dict, strict=True)
+        missing, unexpected = model.load_state_dict(filtered_state_dict, strict=False)
+        if unexpected or missing:
+            print(f"[DynamiCrafter] load_state_dict: missing={len(missing)} unexpected={len(unexpected)} (non-fatal for lazy modules)")
 
     return model
 
