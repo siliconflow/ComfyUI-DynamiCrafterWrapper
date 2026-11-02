@@ -43,6 +43,18 @@ def load_model_checkpoint(model, file_path, dtype, device):
                 return True
         return False
 
+    # Materialize meta parameters first (constructed under
+    # accelerate.init_empty_weights()): .to() on meta tensors raises
+    # "Cannot copy out of meta tensor". to_empty() recreates every
+    # parameter/buffer on the CPU with real storage, then load_state_dict
+    # fills in the values.
+    _on_meta = any(
+        getattr(p, "device", None) is not None and p.device.type == "meta"
+        for p in model.parameters()
+    )
+    if _on_meta:
+        model.to_empty(device="cpu")
+
     if is_accelerate_available and not _has_comfy_ops_submodules(model):
         for key in filtered_state_dict:
             set_module_tensor_to_device(model, key, dtype=dtype, device=device, value=filtered_state_dict[key])
